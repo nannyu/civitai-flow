@@ -1,0 +1,50 @@
+name: PhotoSaveChecks
+options:
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  FlowCore:
+    path: ${FLOW_PHOTO_SOURCE_ROOT}/FlowCore
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_ALLOWED: YES
+    GENERATE_INFOPLIST_FILE: YES
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  PhotoSaveCheckHost:
+    type: application
+    platform: iOS
+    sources:
+      - path: ${FLOW_PHOTO_SOURCE_ROOT}/PhotoSaveChecks/Host.swift
+      - path: ${FLOW_PHOTO_SOURCE_ROOT}/Flow/Services/PhotoSaver.swift
+    dependencies:
+      - package: FlowCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.civitai.flow.photo-checks
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Only the isolated test simulator: verify photo imports."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Only the isolated test simulator: verify imported test assets."
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+  PhotoSaverTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ${FLOW_PHOTO_SOURCE_ROOT}/PhotoSaveChecks/PhotoSaverTests.swift
+    dependencies:
+      - target: PhotoSaveCheckHost
+      - package: FlowCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.civitai.flow.photo-checks.tests
+schemes:
+  PhotoSaveChecks:
+    build:
+      targets:
+        PhotoSaveCheckHost: all
+        PhotoSaverTests: [test]
+    test:
+      targets: [PhotoSaverTests]
+      gatherCoverageData: false

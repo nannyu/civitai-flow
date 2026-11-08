@@ -29,6 +29,7 @@ public final class FeedStore {
         visitedCursors = []
         hasMore = false
         defer { if generation == current { isLoading = false } }
+        guard query.ratings & ContentRating.allMask != 0 else { hasLoaded = true; return }
         do {
             let page = try await client.fetch(query: query, cursor: nil, token: token)
             try Task.checkCancellation()
@@ -61,12 +62,20 @@ public final class FeedStore {
 
     public func loadMoreIfNeeded(after post: MediaPost, token: String? = nil) async {
         guard let index = posts.firstIndex(where: { $0.id == post.id }), index >= posts.count - 5 else { return }
-        await loadMore(token: token)
+        let current = generation, count = posts.count
+        var attempts = 0
+        repeat {
+            await loadMore(token: token)
+            attempts += 1
+        } while generation == current && posts.count == count && hasMore && errorMessage == nil && !Task.isCancelled && attempts < 3
     }
 
     private func append(_ page: FeedPage) {
         var ids = Set(posts.map(\.id))
-        posts.append(contentsOf: page.items.filter { $0.isSupportedMedia && $0.isSafeForWork && ids.insert($0.id).inserted })
+        posts.append(contentsOf: page.items.filter {
+            $0.isSupportedMedia && $0.isAllowed(ratings: query.ratings)
+                && (query.media == .all || $0.isVideo == (query.media == .video)) && ids.insert($0.id).inserted
+        })
         cursor = page.metadata?.nextCursor
         hasMore = cursor.map { !$0.isEmpty && !visitedCursors.contains($0) } ?? false
     }

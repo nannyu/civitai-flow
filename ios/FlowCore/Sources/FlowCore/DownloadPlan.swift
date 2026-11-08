@@ -4,6 +4,7 @@ public struct DownloadOptions: Sendable {
     public var includePreview = true
     public var imagePreviewOnly = true
     public var includeDescription = true
+    public var ratings = ContentRating.pg.rawValue
     public init() {}
 }
 
@@ -13,11 +14,13 @@ public struct DownloadAsset: Codable, Sendable {
     public let url: URL?
     public let content: Data?
     public let kind: Kind?
+    public let rating: ContentRating?
 
-    public init(name: String, url: URL, kind: Kind) {
+    public init(name: String, url: URL, kind: Kind, rating: ContentRating? = nil) {
         self.name = DownloadNaming.safe(name)
         self.url = url
         self.kind = kind
+        self.rating = rating
         content = nil
     }
     public init(name: String, content: Data) {
@@ -25,6 +28,7 @@ public struct DownloadAsset: Codable, Sendable {
         self.content = content
         url = nil
         kind = nil
+        rating = nil
     }
 }
 
@@ -54,12 +58,12 @@ public struct DownloadPlan: Codable, Sendable {
         var notes: [String] = []
         if options.includePreview {
             if let preview = version.images?.first(where: {
-                ($0.type == nil || $0.type == "image" || $0.type == "video") && $0.isSafeForWork && (!options.imagePreviewOnly || !$0.isVideo)
+                ($0.type == nil || $0.type == "image" || $0.type == "video") && $0.isAllowed(ratings: options.ratings) && (!options.imagePreviewOnly || !$0.isVideo)
             }) {
                 let url = DownloadNaming.originalMediaURL(preview.url, isVideo: preview.isVideo)
                 assets.append(DownloadAsset(name: "\(stem).preview.\(DownloadNaming.mediaExtension(url, isVideo: preview.isVideo))",
-                                            url: url, kind: preview.isVideo ? .video : .image))
-            } else { notes.append("没有符合当前普通内容筛选的预览文件，已跳过预览。") }
+                                            url: url, kind: preview.isVideo ? .video : .image, rating: preview.contentRating))
+            } else { notes.append("没有符合当前内容等级的预览文件，已跳过预览。") }
         }
         if options.includeDescription {
             let text = [modelDescription, version.description].compactMap { $0 }.map(DownloadNaming.plainText)
@@ -76,9 +80,25 @@ public struct DownloadPlan: Codable, Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return DownloadPlan(key: "media-\(post.id)", title: "@\(post.creator) · \(post.id)", assets: [
-            DownloadAsset(name: "\(stem).\(DownloadNaming.mediaExtension(url, isVideo: post.isVideo))", url: url, kind: post.isVideo ? .video : .image),
+            DownloadAsset(name: "\(stem).\(DownloadNaming.mediaExtension(url, isVideo: post.isVideo))", url: url, kind: post.isVideo ? .video : .image, rating: post.contentRating),
             DownloadAsset(name: "\(stem).civitai.info", content: try encoder.encode(post))
         ])
+    }
+
+    public func contentRating(for filename: String) -> ContentRating? {
+        let stem = (filename as NSString).deletingPathExtension
+        guard let asset = assets.first(where: { ($0.kind == .image || $0.kind == .video) && ($0.name as NSString).deletingPathExtension == stem }) else { return nil }
+        if let rating = asset.rating { return rating }
+        // Existing download histories predate explicit ratings; recover them from the bundled metadata.
+        for metadata in assets where metadata.name.hasSuffix(".civitai.info") {
+            guard let content = metadata.content else { continue }
+            if let post = try? JSONDecoder().decode(MediaPost.self, from: content) { return post.contentRating }
+            if let version = try? JSONDecoder().decode(ModelVersion.self, from: content),
+               let preview = version.images?.first(where: { DownloadNaming.originalMediaURL($0.url, isVideo: $0.isVideo) == asset.url }) {
+                return preview.contentRating
+            }
+        }
+        return nil
     }
 }
 

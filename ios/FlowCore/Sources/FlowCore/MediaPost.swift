@@ -71,14 +71,18 @@ public struct MediaPost: Codable, Identifiable, Hashable, Sendable {
 
     public var isSupportedMedia: Bool { type == nil || type == "image" || type == "video" }
 
+    public var contentRating: ContentRating? {
+        ContentRating.classify(browsingLevel: browsingLevel, nsfwLevel: nsfwLevel, legacyNsfw: nsfw.map(JSONValue.bool))
+    }
+
+    public func isAllowed(ratings: Int) -> Bool {
+        guard let contentRating else { return false }
+        return ratings & contentRating.rawValue != 0
+    }
+
     /// Fail closed when an item has no classification; never trust filtering alone.
     public var isSafeForWork: Bool {
-        if nsfw == true { return false }
-        if let browsingLevel { return browsingLevel == 1 }
-        if let nsfwLevel {
-            return ["none", "0", "1"].contains(nsfwLevel.text.lowercased())
-        }
-        return nsfw == false
+        contentRating == .pg
     }
 
     public var creator: String { username ?? "未知创作者" }

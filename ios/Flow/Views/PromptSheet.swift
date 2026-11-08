@@ -60,6 +60,7 @@ struct PromptSheet: View {
                     Link(destination: post.webURL) { Label("在 Civitai 查看完整作品", systemImage: "arrow.up.right.square") }
                 } footer: { Text("仅显示作者公开的生成信息；部分作品不包含提示词或模型参数。") }
             }
+            .flowListSurface()
             .navigationTitle("灵感配方").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)

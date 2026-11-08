@@ -75,10 +75,12 @@ public struct ModelVersion: Decodable, Identifiable, Sendable {
         public let nsfwLevel: Int?
         public var isVideo: Bool { type == "video" || ["mp4", "webm", "mov"].contains(url.pathExtension.lowercased()) }
         public var isSafeForWork: Bool {
-            if let nsfw, !["false", "none", "0", "1"].contains(nsfw.text.lowercased()) { return false }
-            if let nsfwLevel { return nsfwLevel <= 1 }
-            return nsfw != nil
+            contentRating == .pg
         }
+        public var contentRating: ContentRating? {
+            ContentRating.classify(nsfwLevel: nsfwLevel.map { .number(Double($0)) }, legacyNsfw: nsfw)
+        }
+        public func isAllowed(ratings: Int) -> Bool { contentRating.map { ratings & $0.rawValue != 0 } ?? false }
     }
     public var downloadableFiles: [ModelFile] { files.filter { $0.type != "Training Data" } }
 }

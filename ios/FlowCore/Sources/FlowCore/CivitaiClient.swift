@@ -26,6 +26,7 @@ public struct FeedQuery: Hashable, Sendable {
     public var period: FeedPeriod = .week
     public var media: MediaFilter = .all
     public var username: String = ""
+    public var ratings: Int = ContentRating.pg.rawValue
     public init() {}
 }
 
@@ -53,8 +54,7 @@ public struct CivitaiClient: FeedServing {
         var components = URLComponents(string: "https://civitai.com/api/v1/images")!
         var items = [
             URLQueryItem(name: "limit", value: "30"),
-            URLQueryItem(name: "browsingLevel", value: "1"),
-            URLQueryItem(name: "nsfw", value: "false"),
+            URLQueryItem(name: "browsingLevel", value: String(query.ratings & ContentRating.allMask)),
             URLQueryItem(name: "withMeta", value: "true"),
             URLQueryItem(name: "sort", value: query.sort.rawValue),
             URLQueryItem(name: "period", value: query.period.rawValue)
@@ -75,7 +75,7 @@ public struct CivitaiClient: FeedServing {
     }
 
     public func fetch(query: FeedQuery, cursor: String?, token: String?) async throws -> FeedPage {
-        let (data, response) = try await session.data(for: request(query: query, cursor: cursor, token: token))
+        let (data, response) = try await session.data(for: request(query: query, cursor: cursor, token: token), delegate: DownloadRedirectDelegate())
         guard let http = response as? HTTPURLResponse else { throw CivitaiError.invalidResponse }
         switch http.statusCode {
         case 200..<300: break
