@@ -1,0 +1,19 @@
+name: iOS
+on:
+  push:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+jobs:
+  validate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test core behavior
+        run: swift test --package-path ios/FlowCore
+      - name: Build iOS app without signing
+        run: >-
+          xcodebuild -project ios/Flow.xcodeproj -scheme Flow
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath /tmp/FlowDerivedData
+          CODE_SIGNING_ALLOWED=NO build
